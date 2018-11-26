@@ -38,14 +38,53 @@ as_tibble(str_split(files,"-",simplify = T)) %>%
   mutate(processed.data = map2(.$raw.data,.$plate.type, process.plate))
 
 names(data$processed.data)<-paste(data$plate.type,data$replicate,sep="-")
+
 long.data<-bind_rows(data$processed.data,.id="file")
+
 long.data %>%
   mutate(plate = str_split(file,"-",simplify = T)[,1],
-         rep = str_split(file,"-",simplify = T)[,2])
+         rep = str_split(file,"-",simplify = T)[,2]) %>%
+  filter(miRname == "UniSp3 IPC")
 
-left_join(data$processed.data[[2]],data$processed.data[[3]],by="Well") %>%
-  ggplot(aes(x=Cq.x,y=Cq.y))+geom_point()
 
+# data corrected by the IPC file.
+corrected.long.data<-
+mutate(long.data,plate = str_split(file,"-",simplify = T)[,1],
+           rep = str_split(file,"-",simplify = T)[,2]) %>%
+  filter(miRname == "UniSp3 IPC") %>%
+  group_by(file) %>%
+    mutate(ipc.replicate = mean(Cq),
+           sd.replicate = sd(Cq),
+           cv.replicate = (sd.replicate/ipc.replicate)*100) %>%
+  group_by() %>%
+  mutate(diff.mean = abs(Cq-ipc.replicate)) %>%
+  group_by(file) %>%
+  mutate(possible.outlier = ifelse(diff.mean == max(diff.mean),T,F)) %>%
+  mutate(outlier.flag = ifelse(cv.replicate >1 & possible.outlier,T,F)) %>%
+  filter(!(outlier.flag)) %>%
+  group_by(file) %>%
+  mutate(ipc.replicate = mean(Cq),
+         sd.replicate = sd(Cq),
+         cv.replicate = (sd.replicate/ipc.replicate)*100) %>%
+  group_by(plate) %>%
+  mutate(ipc.overall = mean(Cq)) %>%
+  group_by(file) %>%
+  summarise(ipc.cf = mean(ipc.replicate - ipc.overall)) %>%
+  left_join(long.data,.) %>%
+  mutate(corrected.cq = Cq-ipc.cf)
+
+
+
+#filter them so the just contain flag, cq, well, name and sequence
+#make the data long
+#group the data by name and sequence
+#calculate the cv for each one
+#eventually when I have 4 datapoints for each I would like to automatically remove
+#the outlier datapoints. IE choose the set of 3 points that has the lowest CV. 
+
+
+
+combn(1:4,3)
 
 #Take a list of processed plates and convert them to qpcr data
 #check the CVs. If they are bad eventually figure out some way to toss the outliers. 
