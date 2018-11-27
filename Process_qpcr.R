@@ -73,7 +73,23 @@ mutate(long.data,plate = str_split(file,"-",simplify = T)[,1],
   left_join(long.data,.) %>%
   mutate(corrected.cq = Cq-ipc.cf)
 
-
+corrected.long.data %>%
+  mutate(plate = str_split(file,"-",simplify = T)[,1],
+         rep = str_split(file,"-",simplify = T)[,2]) %>%
+  filter(!is.na(sequence)) %>%
+  group_by(Well,sequence,miRname) %>%
+  mutate(mean.diff=abs(corrected.cq-mean(corrected.cq)),
+         outlier.test = max(mean.diff),
+         outlier = ifelse(mean.diff == outlier.test,T,F)) %>%
+  filter(!outlier) %>%
+  summarise(mean.corrected.cq = mean(corrected.cq),
+            sd.corrected.cq = sd(corrected.cq),
+            cv.corrected.cq = (sd.corrected.cq/mean.corrected.cq)*100) %>%
+  #716 genes left
+  #filter(mean.corrected.cq < 37, cv.corrected.cq < 5) %>%
+  filter(cv.corrected.cq < 5) %>%
+  ggplot(aes(x=mean.corrected.cq))+geom_density()
+  
 
 #filter them so the just contain flag, cq, well, name and sequence
 #make the data long
@@ -81,10 +97,6 @@ mutate(long.data,plate = str_split(file,"-",simplify = T)[,1],
 #calculate the cv for each one
 #eventually when I have 4 datapoints for each I would like to automatically remove
 #the outlier datapoints. IE choose the set of 3 points that has the lowest CV. 
-
-
-
-combn(1:4,3)
 
 #Take a list of processed plates and convert them to qpcr data
 #check the CVs. If they are bad eventually figure out some way to toss the outliers. 
