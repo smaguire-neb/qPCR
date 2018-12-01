@@ -6,7 +6,7 @@ library(readxl)
 library(stringr)
 library(tidyr)
 library(purrr)
-
+library(ggplot2)
 setwd("~/Desktop/qpcr/Qpcr code/data")
 
 process.plate<-function(data,plate.type){
@@ -85,9 +85,7 @@ corrected.long.data %>%
   summarise(mean.corrected.cq = mean(corrected.cq),
             sd.corrected.cq = sd(corrected.cq),
             cv.corrected.cq = (sd.corrected.cq/mean.corrected.cq)*100) %>%
-  #716 genes left
-  #filter(mean.corrected.cq < 37, cv.corrected.cq < 5) %>%
-  filter(cv.corrected.cq < 5) %>%
+  filter(mean.corrected.cq < 37, cv.corrected.cq < 5) %>%
   ggplot(aes(x=mean.corrected.cq))+geom_density()
   
 
@@ -101,5 +99,35 @@ corrected.long.data %>%
 #Take a list of processed plates and convert them to qpcr data
 #check the CVs. If they are bad eventually figure out some way to toss the outliers. 
 #Toss the outliers if they fail the CV check then find the mean of all replicates, subtract the mean, toss the one with the highest abs. value. 
+
+
+
+
+# convert sequence names --------------------------------------------------
+
+# This is just some one-off code to convert the sequences in the layout file to fasta format try and map them
+# with the star pipeline to see if I can match up the names.
+
+layout1 <- read_excel("layout-plate1.xlsx")
+layout2 <- read_excel("layout-plate2.xlsx")
+
+writeFasta<-function(data, filename){
+  fastaLines = c()
+  for (rowNum in 1:nrow(data)){
+    fastaLines = c(fastaLines, as.character(paste(">", data[rowNum,"name"], sep = "")))
+    fastaLines = c(fastaLines,as.character(data[rowNum,"seq"]))
+  }
+  fileConn<-file(filename)
+  writeLines(fastaLines, fileConn)
+  close(fileConn)
+}
+
+full.layout<-bind_rows(layout1,layout2) %>% 
+  select(miRname,sequence) %>%
+  filter(!(is.na(sequence))) %>%
+  dplyr::rename("name"="miRname","seq"="sequence")
+
+writeFasta(full.layout,"miRnome.fasta")
+
 
 
